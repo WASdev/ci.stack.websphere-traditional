@@ -1,52 +1,17 @@
-FROM ibmcom/websphere-traditional:9.0.5.2-ubi
+FROM {{.stack.finalimage}}
 
 USER root
 
-RUN yum upgrade --disableplugin=subscription-manager -y \
-   && yum clean --disableplugin=subscription-manager packages \
-   && echo 'Finished installing dependencies'
-
-#Install openjdk
-ENV JAVA_VERSION jdk8u222-b10_openj9-0.15.1
-
-RUN set -eux; \
-   ESUM='20cff719c6de43f8bb58c7f59e251da7c1fa2207897c9a4768c8c669716dc819'; \
-   BINARY_URL='https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u222-b10_openj9-0.15.1/OpenJDK8U-jdk_x64_linux_openj9_8u222b10_openj9-0.15.1.tar.gz'; \
-   curl -LfsSo /tmp/openjdk.tar.gz ${BINARY_URL}; \
-   echo "${ESUM} */tmp/openjdk.tar.gz" | sha256sum -c -; \
-   mkdir -p /opt/java/openjdk; \
-   cd /opt/java/openjdk; \
-   tar -xf /tmp/openjdk.tar.gz --strip-components=1; \
-   rm -rf /tmp/openjdk.tar.gz;
-
-   ENV JAVA_HOME=/opt/java/openjdk \
-   PATH="/opt/java/openjdk/bin:$PATH"
-   ENV JAVA_TOOL_OPTIONS="-XX:+IgnoreUnrecognizedVMOptions -XX:+UseContainerSupport -XX:+IdleTuningCompactOnIdle -XX:+IdleTuningGcOnIdle"
-
-# Dependency install
-RUN yum install --disableplugin=subscription-manager -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm \
-   && yum install --disableplugin=subscription-manager -y unzip curl ca-certificates wget xmlstarlet
-
-# Maven install
-ARG MAVEN_VERSION=3.6.3
-ARG USER_HOME_DIR="/root"
-ARG SHA=c35a1803a6e70a126e80b2b3ae33eed961f83ed74d18fcd16909b2d44d7dada3203f1ffe726c17ef8dcca2dcaa9fca676987befeadc9b9f759967a8cb77181c0
-ARG BASE_URL=https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/
-
-RUN mkdir -p /usr/share/maven /usr/share/maven/ref \
-  && curl -fsSL -o /tmp/apache-maven.tar.gz ${BASE_URL}/apache-maven-${MAVEN_VERSION}-bin.tar.gz \
-  && echo "${SHA}  /tmp/apache-maven.tar.gz" | sha512sum -c - \
-  && tar -xzf /tmp/apache-maven.tar.gz -C /usr/share/maven --strip-components=1 \
-  && rm -f /tmp/apache-maven.tar.gz \
-  && ln -s /usr/share/maven/bin/mvn /usr/bin/mvn
-
-ENV MAVEN_HOME /usr/share/maven
-ENV MAVEN_CONFIG "$USER_HOME_DIR/.m2"
+RUN dnf --disableplugin=subscription-manager install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
+  && dnf --disableplugin=subscription-manager install -y xmlstarlet \
+  && dnf --disableplugin=subscription-manager update -y; dnf --disableplugin=subscription-manager clean all
 
 RUN useradd --uid 1000 --gid 0 --shell /bin/bash --create-home java_user \
   && mkdir -p /mvn/repository \
-  && chown -R java_user:0 /mvn \
-  && mkdir -p /work/home
+  && mkdir -p /work/home \
+  && mkdir -p /opt/java/openjdk \
+  && mkdir -p /usr/share/maven \
+  && chown -R java_user:0 /mvn /work/home /opt/java/openjdk /usr/share/maven
 
 COPY ./LICENSE /licenses/
 COPY --chown=java_user:0 ./project /project
@@ -54,10 +19,78 @@ COPY --chown=java_user:0 ./config /config
 
 RUN chmod -R 777 /work /opt/IBM /etc/websphere
 
-COPY ./mvn-stack-settings.xml /usr/share/maven/conf/settings.xml
-COPY ./mvn-stack-settings.xml /project/mvn-stack-settings.xml
+USER java_user
+
+#
+# Install openjdk
+#
+# This section based upon:
+#   https://github.com/AdoptOpenJDK/openjdk-docker/blob/master/8/jdk/ubi/Dockerfile.openj9.releases.full
+#
+# Note: removed leading "set -eux; \" argument to RUN, restore if debugging this command
+#
+
+ENV JAVA_VERSION jdk8u242-b08_openj9-0.18.1
+
+RUN ARCH="$(uname -m)"; \
+    case "${ARCH}" in \
+       ppc64el|ppc64le) \
+         ESUM='d958da86425c23c49a23dbe2616de55e6b44a2139c548880440505401ff48ec4'; \
+         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u242-b08_openj9-0.18.1/OpenJDK8U-jdk_ppc64le_linux_openj9_8u242b08_openj9-0.18.1.tar.gz'; \
+         ;; \
+       s390x) \
+         ESUM='82f34d0917c068e49cd23a7350ccc592648b31bad45ea89536577493a043eab6'; \
+         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u242-b08_openj9-0.18.1/OpenJDK8U-jdk_s390x_linux_openj9_8u242b08_openj9-0.18.1.tar.gz'; \
+         ;; \
+       amd64|x86_64) \
+         ESUM='ca785af638b24f9d4df896f5a9f557cc9f1e5fa5e2b1174d6b906e3fd5474c2e'; \
+         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u242-b08_openj9-0.18.1/OpenJDK8U-jdk_x64_linux_openj9_8u242b08_openj9-0.18.1.tar.gz'; \
+         ;; \
+       *) \
+         echo "Unsupported arch: ${ARCH}"; \
+         exit 1; \
+         ;; \
+    esac; \
+    curl -LfsSo /tmp/openjdk.tar.gz ${BINARY_URL}; \
+    echo "${ESUM} */tmp/openjdk.tar.gz" | sha256sum -c -; \
+    mkdir -p /opt/java/openjdk; \
+    cd /opt/java/openjdk; \
+    tar -xf /tmp/openjdk.tar.gz --strip-components=1; \
+    rm -rf /tmp/openjdk.tar.gz;
+
+ENV JAVA_HOME=/opt/java/openjdk \
+    PATH="/opt/java/openjdk/bin:$PATH"
+ENV JAVA_TOOL_OPTIONS="-XX:+IgnoreUnrecognizedVMOptions -XX:+UseContainerSupport -XX:+IdleTuningCompactOnIdle -XX:+IdleTuningGcOnIdle"
+
+#
+# Install maven
+#
+# This section based upon:
+#   https://github.com/kabanero-io/collections/blob/master/docker/Dockerfile-maven
+#
+
+ARG MAVEN_VERSION=3.6.3
+ARG USER_HOME_DIR="/root"
+ARG SHA=c35a1803a6e70a126e80b2b3ae33eed961f83ed74d18fcd16909b2d44d7dada3203f1ffe726c17ef8dcca2dcaa9fca676987befeadc9b9f759967a8cb77181c0
+ARG BASE_URL=https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries
+
+RUN mkdir -p /usr/share/maven/ref \
+  && curl -fsSL -o /tmp/apache-maven.tar.gz ${BASE_URL}/apache-maven-${MAVEN_VERSION}-bin.tar.gz \
+  && echo "${SHA}  /tmp/apache-maven.tar.gz" | sha512sum -c - \
+  && tar -xzf /tmp/apache-maven.tar.gz -C /usr/share/maven --strip-components=1 \
+  && rm -f /tmp/apache-maven.tar.gz
+
+USER root
+
+RUN ln -s /usr/share/maven/bin/mvn /usr/bin/mvn
 
 USER java_user
+
+ENV MAVEN_HOME /usr/share/maven
+ENV MAVEN_CONFIG "$USER_HOME_DIR/.m2"
+
+COPY ./mvn-stack-settings.xml /usr/share/maven/conf/settings.xml
+COPY ./mvn-stack-settings.xml /project/mvn-stack-settings.xml
 
 # Build utility for version range processing
 # Install maven wrapper in /project
@@ -93,6 +126,7 @@ ENV APPSODY_TEST="/project/java-twas-build.sh test"
 
 ENV PORT=9080
 
+EXPOSE 9043
 EXPOSE 9080
 EXPOSE 9443
 EXPOSE 7777

@@ -12,9 +12,9 @@ requirements:
     appsody-version: ">= 0.5.0"
     docker-version: ">= 17.09.0"
 templating-data:
-    twasversion: '9.0.5.2'
+    twasversion: '9.0.5.3'
     baseimage: kabanero/ubi8-maven:0.3.1
-    finalimage: ibmcom/websphere-traditional:9.0.5.2-ubi
+    finalimage: ibmcom/websphere-traditional:9.0.5.3-ubi
     parentpomgroup: dev.appsody
     parentpomid: java-websphere-traditional
     parentpomrange: '[0.2, 0.3)'
