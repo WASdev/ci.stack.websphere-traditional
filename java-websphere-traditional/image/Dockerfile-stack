@@ -1,58 +1,76 @@
-FROM ibmcom/websphere-traditional:9.0.5.2-ubi
+FROM {{.stack.finalimage}}
 
 USER root
 
-RUN yum upgrade --disableplugin=subscription-manager -y \
-   && yum clean --disableplugin=subscription-manager packages \
-   && echo 'Finished installing dependencies'
+RUN useradd --uid 1000 --gid 0 --shell /bin/bash --create-home java_user \
+  && mkdir -p /mvn/repository \
+  && mkdir -p /work/home \
+  && mkdir -p /opt/java/openjdk \
+  && mkdir -p /usr/share/maven \
+  && chown -R java_user:0 /mvn /work/home /opt/java/openjdk /usr/share/maven
 
-#Install openjdk
-ENV JAVA_VERSION jdk8u222-b10_openj9-0.15.1
-ENV JAVA_DIST_PATH https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download
+COPY ./LICENSE /licenses/
+COPY --chown=java_user:0 ./project /project
+COPY --chown=java_user:0 ./config /config
+
+RUN chmod -R 777 /work /opt/IBM /etc/websphere
+
+COPY ./mvn-stack-settings.xml /usr/share/maven/conf/settings.xml
+COPY ./mvn-stack-settings.xml /project/mvn-stack-settings.xml
+
+USER java_user
+
+#
+# Install openjdk
+#
+# This section based upon:
+#   https://github.com/AdoptOpenJDK/openjdk-docker/blob/master/8/jdk/ubi/Dockerfile.openj9.releases.full
+#
+
+ENV JAVA_VERSION jdk8u242-b08_openj9-0.18.1
 
 RUN set -eux; \
-   ARCH="$(uname -m)"; \
-   case "${ARCH}" in \
-     ppc64el|ppc64le) \
-       ARCH=ppc64le; \
-       JAVA_DIST_SHA=31186fc0974d2e2eed2887e81f068fb77f218b1c062623dd826ac2291814b848; \
-       JAVA_DIST_FILE=OpenJDK8U-jdk_ppc64le_linux_openj9_8u222b10_openj9-0.15.1.tar.gz; \
-       ;; \
-     s390x) \
-       ARCH=s390x; \
-       JAVA_DIST_SHA=1facb587e20ff14acba78adc2039e8977749ede596d923eec69f37be7e657c96; \
-       JAVA_DIST_FILE=OpenJDK8U-jdk_s390x_linux_openj9_8u222b10_openj9-0.15.1.tar.gz; \
-       ;; \
-     amd64|x86_64) \
-       ARCH=x86_64; \
-       JAVA_DIST_SHA=20cff719c6de43f8bb58c7f59e251da7c1fa2207897c9a4768c8c669716dc819; \
-       JAVA_DIST_FILE=OpenJDK8U-jdk_x64_linux_openj9_8u222b10_openj9-0.15.1.tar.gz; \
-       ;; \
-     *) \
-       echo "Unsupported arch: ${ARCH}"; \
-       exit 1; \
-       ;; \
-   esac; \
-   curl -LfsSo /tmp/openjdk.tar.gz ${JAVA_DIST_PATH}/${JAVA_VERSION}/${JAVA_DIST_FILE}; \
-   echo "${JAVA_DIST_SHA} */tmp/openjdk.tar.gz" | sha256sum -c -; \
-   mkdir -p /opt/java/openjdk; \
-   cd /opt/java/openjdk; \
-   tar -xf /tmp/openjdk.tar.gz --strip-components=1; \
-   rm -rf /tmp/openjdk.tar.gz;
+    ARCH="$(uname -m)"; \
+    case "${ARCH}" in \
+       ppc64el|ppc64le) \
+         ESUM='d958da86425c23c49a23dbe2616de55e6b44a2139c548880440505401ff48ec4'; \
+         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u242-b08_openj9-0.18.1/OpenJDK8U-jdk_ppc64le_linux_openj9_8u242b08_openj9-0.18.1.tar.gz'; \
+         ;; \
+       s390x) \
+         ESUM='82f34d0917c068e49cd23a7350ccc592648b31bad45ea89536577493a043eab6'; \
+         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u242-b08_openj9-0.18.1/OpenJDK8U-jdk_s390x_linux_openj9_8u242b08_openj9-0.18.1.tar.gz'; \
+         ;; \
+       amd64|x86_64) \
+         ESUM='ca785af638b24f9d4df896f5a9f557cc9f1e5fa5e2b1174d6b906e3fd5474c2e'; \
+         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u242-b08_openj9-0.18.1/OpenJDK8U-jdk_x64_linux_openj9_8u242b08_openj9-0.18.1.tar.gz'; \
+         ;; \
+       *) \
+         echo "Unsupported arch: ${ARCH}"; \
+         exit 1; \
+         ;; \
+    esac; \
+    curl -LfsSo /tmp/openjdk.tar.gz ${BINARY_URL}; \
+    echo "${ESUM} */tmp/openjdk.tar.gz" | sha256sum -c -; \
+    mkdir -p /opt/java/openjdk; \
+    cd /opt/java/openjdk; \
+    tar -xf /tmp/openjdk.tar.gz --strip-components=1; \
+    rm -rf /tmp/openjdk.tar.gz;
 
-   ENV JAVA_HOME=/opt/java/openjdk \
-   PATH="/opt/java/openjdk/bin:$PATH"
-   ENV JAVA_TOOL_OPTIONS="-XX:+IgnoreUnrecognizedVMOptions -XX:+UseContainerSupport -XX:+IdleTuningCompactOnIdle -XX:+IdleTuningGcOnIdle"
+ENV JAVA_HOME=/opt/java/openjdk \
+    PATH="/opt/java/openjdk/bin:$PATH"
+ENV JAVA_TOOL_OPTIONS="-XX:+IgnoreUnrecognizedVMOptions -XX:+UseContainerSupport -XX:+IdleTuningCompactOnIdle -XX:+IdleTuningGcOnIdle"
 
-# Dependency install
-RUN yum install --disableplugin=subscription-manager -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm \
-   && yum install --disableplugin=subscription-manager -y unzip curl ca-certificates wget xmlstarlet
+#
+# Install maven
+#
+# This section based upon:
+#   https://github.com/kabanero-io/collections/blob/master/docker/Dockerfile-maven
+#
 
-# Maven install
 ARG MAVEN_VERSION=3.6.3
 ARG USER_HOME_DIR="/root"
 ARG SHA=c35a1803a6e70a126e80b2b3ae33eed961f83ed74d18fcd16909b2d44d7dada3203f1ffe726c17ef8dcca2dcaa9fca676987befeadc9b9f759967a8cb77181c0
-ARG BASE_URL=https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/
+ARG BASE_URL=https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries
 
 RUN mkdir -p /usr/share/maven /usr/share/maven/ref \
   && curl -fsSL -o /tmp/apache-maven.tar.gz ${BASE_URL}/apache-maven-${MAVEN_VERSION}-bin.tar.gz \
@@ -68,17 +86,6 @@ RUN useradd --uid 1000 --gid 0 --shell /bin/bash --create-home java_user \
   && mkdir -p /mvn/repository \
   && chown -R java_user:0 /mvn \
   && mkdir -p /work/home
-
-COPY ./LICENSE /licenses/
-COPY --chown=java_user:0 ./project /project
-COPY --chown=java_user:0 ./config /config
-
-RUN chmod -R 777 /work /opt/IBM /etc/websphere
-
-COPY ./mvn-stack-settings.xml /usr/share/maven/conf/settings.xml
-COPY ./mvn-stack-settings.xml /project/mvn-stack-settings.xml
-
-USER java_user
 
 # Build utility for version range processing
 # Install maven wrapper in /project
