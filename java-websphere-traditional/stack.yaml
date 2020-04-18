@@ -13,7 +13,7 @@ requirements:
     docker-version: ">= 17.09.0"
 templating-data:
     twasversion: '9.0.5.3'
-    baseimage: kabanero/ubi8-maven:0.3.1
+    baseimage: adoptopenjdk/openjdk8-openj9:jdk8u242-b08_openj9-0.18.1-ubi
     finalimage: ibmcom/websphere-traditional:9.0.5.3-ubi
     parentpomgroup: dev.appsody
     parentpomid: java-websphere-traditional
