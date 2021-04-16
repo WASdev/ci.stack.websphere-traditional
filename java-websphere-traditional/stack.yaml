@@ -1,6 +1,6 @@
 name: IBM WebSphere Traditional®
 version: 0.4.1
-description: tWAS & OpenJ9 using Maven
+description: tWAS & OpenJ9 using Mavenn
 license: Apache-2.0
 language: java
 maintainers:
