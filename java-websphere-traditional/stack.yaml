@@ -27,5 +27,5 @@ templating-data:
   finalimage: ibmcom/websphere-traditional:latest-ubi
   parentpomgroup: dev.appsody
   parentpomid: java-websphere-traditional
-  parentpomrange: "[0.4, 0.5)"
+  parentpomrange: "[0.3, 0.4)"
   parentpomfilename: appsody-twas-pom.xml
