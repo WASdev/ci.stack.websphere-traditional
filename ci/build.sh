@@ -5,7 +5,10 @@
 
 # Check if can login to docker hub
 if [ -n "$DOCKER_USERNAME" ] && [ -n "$DOCKER_PASSWORD" ]; then
+    echo "performing docker login for pulls"
     echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" "docker.io" --password-stdin
+    else
+        echo "No DOCKER_USERNAME specified in settings"
 fi
 
 # Allow multiple stacks to be selected
