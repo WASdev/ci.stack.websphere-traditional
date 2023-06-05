@@ -1,0 +1,31 @@
+name: IBM WebSphere Traditional®
+version: 0.3.4
+description: tWAS & OpenJ9 using Mavenn
+license: Apache-2.0
+language: java
+maintainers:
+  - name: Glenn Marcy
+    email: gmarcy@us.ibm.com
+    github-id: gmarcy
+default-template: default
+requirements:
+  appsody-version: ">= 0.5.0"
+  docker-version: ">= 17.09.0"
+templating-data:
+  twasversion: "9.0.5.6"
+  epelrpm: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
+  jdkversion: "jdk8u292-b10_openj9-0.26.0"
+  jdksuffix: "8u292-b10_openj9-0.26.0"
+  jdkshappc64le: "4fdb56b4d9fcd9712b3d7e1865337b95d9db950ba8a21549a2630df3ca7b3f8c"
+  jdkshas390x: "42a7711c24a252f67f7f817ce248f4e916d8398c2b5e85d7ea4ca2a9f2c95a20"
+  jdkshax64: "e28e595da684b9fe0fffce34c6f0627fbc3c12190df1c34c567af2c000e3e24a"
+  jdkdownload: "https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download"
+  baseimage: adoptopenjdk/openjdk8-openj9:jdk8u292-b10_openj9-0.26.0-ubi
+  mavenversion: "3.6.3"
+  mavensha: "c35a1803a6e70a126e80b2b3ae33eed961f83ed74d18fcd16909b2d44d7dada3203f1ffe726c17ef8dcca2dcaa9fca676987befeadc9b9f759967a8cb77181c0"
+  mavendownload: "https://archive.apache.org/dist/maven/maven-3"
+  finalimage: ibmcom/websphere-traditional:latest-ubi
+  parentpomgroup: dev.appsody
+  parentpomid: java-websphere-traditional
+  parentpomrange: "[0.3, 0.4)"
+  parentpomfilename: appsody-twas-pom.xml
